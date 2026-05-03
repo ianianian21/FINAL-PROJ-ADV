@@ -2,14 +2,14 @@
 
 "# FINAL-ADV-PROJ" 
 
-"# MEMBERS:"
+MEMBERS
 
-Peteros
+Peteros, Ian Benedict
 
-Valle
+Valle, Carl Mickel
 
-Dayrit
+Dayrit, William Baldwin
 
-Labuan
+Labuan, Ashley
 
-Cajegas"
+Cajegas, Myca
