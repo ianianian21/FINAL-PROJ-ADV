@@ -2,7 +2,7 @@
 
 "# FINAL-ADV-PROJ" 
 
-"# MEMBERS:
+"# MEMBERS:"
 
 Peteros
 
@@ -12,4 +12,4 @@ Dayrit
 
 Labuan
 
-Cajegas" 
+Cajegas"
