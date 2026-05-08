@@ -59,6 +59,21 @@ export const updateUserTheme = async (userId: string, theme: 'light' | 'dark'): 
   }
 };
 
+/**
+ * Update user profile (displayName, profilePicture, etc.)
+ */
+export const updateUserProfile = async (
+  userId: string,
+  updates: { displayName?: string; profilePicture?: string }
+): Promise<void> => {
+  try {
+    await setDoc(doc(db, 'users', userId), updates, { merge: true });
+  } catch (error: any) {
+    console.error('Error updating user profile:', error);
+    throw new Error('Failed to update profile');
+  }
+};
+
 // ============================================================================
 // TASK OPERATIONS
 // ============================================================================

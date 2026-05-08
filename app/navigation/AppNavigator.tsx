@@ -63,7 +63,7 @@ const MainTabNavigator: React.FC = () => {
         options={{
           title: 'Tasks',
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="checkbox-multiple" color={color} size={size} />
+            <MaterialCommunityIcons name="checklist" color={color} size={size} />
           ),
         }}
       />

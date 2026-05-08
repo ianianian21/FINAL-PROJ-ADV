@@ -86,6 +86,15 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   }, []);
 
   /**
+   * Set up header navigation options
+   */
+  useEffect(() => {
+    navigation.getParent()?.setOptions({
+      headerShown: false,
+    });
+  }, [navigation]);
+
+  /**
    * Handle refresh
    */
   const handleRefresh = () => {
@@ -159,7 +168,10 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
           </Text>
         </View>
         <TouchableOpacity
-          onPress={() => navigation.getParent()?.navigate('Profile' as never)}
+          onPress={() => {
+            // Navigate to Profile tab directly
+            navigation.navigate('Profile');
+          }}
         >
           <View style={styles.avatarButton}>
             <MaterialCommunityIcons

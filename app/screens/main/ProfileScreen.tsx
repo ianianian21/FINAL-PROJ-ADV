@@ -11,9 +11,12 @@ import {
   TouchableOpacity,
   Alert,
   Switch,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { MainTabParamList } from '../../types';
 import { useAppContext } from '../../hooks/useAppContext';
@@ -22,13 +25,70 @@ import { LIGHT_THEME } from '../../constants/colors';
 import { TEXT_STYLES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/theme';
 import LoadingOverlay from '../../components/LoadingOverlay';
+import { updateUserProfile } from '../../firebase/firestore';
+import { processProfilePicture, generateAvatarURL } from '../../firebase/storage';
 
 type ProfileScreenProps = BottomTabScreenProps<MainTabParamList, 'Profile'>;
 
 const ProfileScreen: React.FC<ProfileScreenProps> = () => {
-  const { user, signOut, toggleTheme, loading } = useAppContext();
+  const { user, signOut, toggleTheme, loading, refreshUser } = useAppContext();
   const theme = useTheme();
   const [isSigning, setIsSigning] = useState(false);
+  const [isUpdatingPicture, setIsUpdatingPicture] = useState(false);
+
+  /**
+   * Handle profile picture change
+   */
+  const handleChangeProfilePicture = async () => {
+    try {
+      // Request permission
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission needed', 'Please allow access to your photo library');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0].base64) {
+        setIsUpdatingPicture(true);
+        
+        try {
+          const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+          
+          // Process and validate image
+          const pictureToStore = await processProfilePicture(base64Image);
+          
+          // Save to Firestore
+          if (user?.uid) {
+            await updateUserProfile(user.uid, {
+              profilePicture: pictureToStore,
+            });
+            
+            // Refresh user data
+            await refreshUser?.();
+            Alert.alert('Success', 'Profile picture updated!');
+          }
+        } catch (err: any) {
+          console.error('Error updating profile picture:', err);
+          Alert.alert('Error', err.message || 'Failed to update profile picture');
+        } finally {
+          setIsUpdatingPicture(false);
+        }
+      }
+    } catch (err: any) {
+      console.error('Error updating profile picture:', err);
+      Alert.alert('Error', err.message || 'Failed to update profile picture');
+    } finally {
+      setIsUpdatingPicture(false);
+    }
+  };
 
   /**
    * Handle sign out
@@ -73,13 +133,41 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
       {/* User Info Card */}
       <View style={styles.userCard}>
-        <View style={styles.avatar}>
-          <MaterialCommunityIcons
-            name="account-circle"
-            size={64}
-            color={LIGHT_THEME.accentTeal}
-          />
-        </View>
+        {/* Avatar with camera overlay */}
+        <TouchableOpacity
+          style={styles.avatarContainer}
+          onPress={handleChangeProfilePicture}
+          disabled={isUpdatingPicture}
+        >
+          {user?.profilePicture ? (
+            <Image
+              source={{ uri: user.profilePicture }}
+              style={styles.avatarImage}
+            />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <MaterialCommunityIcons
+                name="account-circle"
+                size={64}
+                color={LIGHT_THEME.accentTeal}
+              />
+            </View>
+          )}
+          
+          {/* Camera icon overlay */}
+          <View style={styles.cameraOverlay}>
+            {isUpdatingPicture ? (
+              <ActivityIndicator size="small" color={LIGHT_THEME.background} />
+            ) : (
+              <MaterialCommunityIcons
+                name="camera"
+                size={20}
+                color={LIGHT_THEME.background}
+              />
+            )}
+          </View>
+        </TouchableOpacity>
+
         <Text style={styles.displayName}>{user?.displayName || 'User'}</Text>
         <Text style={styles.email}>{user?.email}</Text>
         <View style={styles.memberBadge}>
@@ -205,8 +293,36 @@ const styles = StyleSheet.create({
     backgroundColor: LIGHT_THEME.backgroundSecondary,
     marginBottom: SPACING.lg,
   },
-  avatar: {
+  avatarContainer: {
+    position: 'relative',
     marginBottom: SPACING.md,
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: LIGHT_THEME.accentTeal,
+  },
+  avatarPlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: LIGHT_THEME.backgroundTertiary,
+  },
+  cameraOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: LIGHT_THEME.accentTeal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: LIGHT_THEME.backgroundSecondary,
   },
   displayName: {
     ...TEXT_STYLES.heading2,

@@ -9,7 +9,6 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDCTVpGUp4nqhKfJNbzy-5UGUEbqzVGgvU",
@@ -45,12 +44,22 @@ if (missingKeys.length > 0) {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Auth with AsyncStorage persistence
-// This ensures the user stays logged in between app restarts
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(ReactNativeAsyncStorage)
-});
+// Initialize Auth with platform-specific persistence
+// On React Native: uses AsyncStorage
+// On Web: uses default persistence (localStorage)
+let auth;
+if (typeof window === 'undefined') {
+  // React Native environment
+  const ReactNativeAsyncStorage = require('@react-native-async-storage/async-storage').default;
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(ReactNativeAsyncStorage)
+  });
+} else {
+  // Web environment - use default Firebase persistence
+  auth = initializeAuth(app);
+}
 
+export { auth };
 export const db = getFirestore(app);
 
 export default app;

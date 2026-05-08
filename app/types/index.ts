@@ -11,6 +11,7 @@ export interface User {
   uid: string;
   email: string;
   displayName: string;
+  profilePicture?: string;
   createdAt: Date;
   theme: 'light' | 'dark';
 }
@@ -92,6 +93,7 @@ export interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   toggleTheme: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   error: string | null;
 }
 

@@ -214,6 +214,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [user]);
 
+  /**
+   * Refresh user profile from Firestore
+   */
+  const refreshUser = useCallback(async () => {
+    try {
+      const userId = getCurrentUserId();
+      if (userId) {
+        const profile = await getUserProfile(userId);
+        if (profile) {
+          setUser(profile);
+        }
+      }
+    } catch (err: any) {
+      console.error('Error refreshing user:', err);
+    }
+  }, []);
+
   const value: AuthContextType = {
     user,
     loading,
@@ -221,6 +238,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     signIn,
     signOut,
     toggleTheme,
+    refreshUser,
     error,
   };
 
