@@ -16,7 +16,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { MainTabParamList } from '../../types';
 import { useAppContext } from '../../hooks/useAppContext';
@@ -25,8 +24,9 @@ import { LIGHT_THEME } from '../../constants/colors';
 import { TEXT_STYLES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/theme';
 import LoadingOverlay from '../../components/LoadingOverlay';
+import ImagePickerInput from '../../components/ImagePickerInput';
 import { updateUserProfile } from '../../firebase/firestore';
-import { processProfilePicture, generateAvatarURL } from '../../firebase/storage';
+import { processProfilePicture } from '../../firebase/storage';
 
 type ProfileScreenProps = BottomTabScreenProps<MainTabParamList, 'Profile'>;
 
@@ -37,50 +37,24 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
   const [isUpdatingPicture, setIsUpdatingPicture] = useState(false);
 
   /**
-   * Handle profile picture change
+   * Handle profile picture change from web or mobile
    */
-  const handleChangeProfilePicture = async () => {
+  const handleChangeProfilePicture = async (base64Image: string) => {
     try {
-      // Request permission
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert('Permission needed', 'Please allow access to your photo library');
-        return;
-      }
-
-      // Launch image picker
-      const result = await ImagePicker.launchImageLibraryAsync({
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.7,
-        base64: true,
-      });
-
-      if (!result.canceled && result.assets[0].base64) {
-        setIsUpdatingPicture(true);
+      setIsUpdatingPicture(true);
+      
+      // Process and validate image
+      const pictureToStore = await processProfilePicture(base64Image);
+      
+      // Save to Firestore
+      if (user?.uid) {
+        await updateUserProfile(user.uid, {
+          profilePicture: pictureToStore,
+        });
         
-        try {
-          const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
-          
-          // Process and validate image
-          const pictureToStore = await processProfilePicture(base64Image);
-          
-          // Save to Firestore
-          if (user?.uid) {
-            await updateUserProfile(user.uid, {
-              profilePicture: pictureToStore,
-            });
-            
-            // Refresh user data
-            await refreshUser?.();
-            Alert.alert('Success', 'Profile picture updated!');
-          }
-        } catch (err: any) {
-          console.error('Error updating profile picture:', err);
-          Alert.alert('Error', err.message || 'Failed to update profile picture');
-        } finally {
-          setIsUpdatingPicture(false);
-        }
+        // Refresh user data
+        await refreshUser?.();
+        Alert.alert('Success', 'Profile picture updated!');
       }
     } catch (err: any) {
       console.error('Error updating profile picture:', err);
@@ -132,69 +106,71 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
     <SafeAreaView style={[styles.containerSafe, { backgroundColor: theme.background }]} edges={['top', 'bottom']}>
       <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
       {/* User Info Card */}
-      <View style={styles.userCard}>
-        {/* Avatar with camera overlay */}
-        <TouchableOpacity
-          style={styles.avatarContainer}
-          onPress={handleChangeProfilePicture}
-          disabled={isUpdatingPicture}
-        >
+      <View style={[styles.userCard, { backgroundColor: theme.backgroundSecondary }]}>
+        {/* Avatar */}
+        <View style={styles.avatarContainer}>
           {user?.profilePicture ? (
             <Image
               source={{ uri: user.profilePicture }}
               style={styles.avatarImage}
             />
           ) : (
-            <View style={styles.avatarPlaceholder}>
+            <View style={[styles.avatarPlaceholder, { backgroundColor: theme.backgroundTertiary }]}>
               <MaterialCommunityIcons
                 name="account-circle"
                 size={64}
-                color={LIGHT_THEME.accentTeal}
+                color={theme.accentTeal}
               />
             </View>
           )}
-          
-          {/* Camera icon overlay */}
-          <View style={styles.cameraOverlay}>
-            {isUpdatingPicture ? (
-              <ActivityIndicator size="small" color={LIGHT_THEME.background} />
-            ) : (
-              <MaterialCommunityIcons
-                name="camera"
-                size={20}
-                color={LIGHT_THEME.background}
-              />
-            )}
-          </View>
-        </TouchableOpacity>
+        </View>
 
-        <Text style={styles.displayName}>{user?.displayName || 'User'}</Text>
-        <Text style={styles.email}>{user?.email}</Text>
-        <View style={styles.memberBadge}>
+        <Text style={[styles.displayName, { color: theme.text }]}>
+          {user?.displayName || 'User'}
+        </Text>
+        <Text style={[styles.email, { color: theme.textSecondary }]}>
+          {user?.email}
+        </Text>
+        <View style={[styles.memberBadge, { backgroundColor: theme.success + '10' }]}>
           <MaterialCommunityIcons
             name="check-circle"
             size={14}
-            color={LIGHT_THEME.success}
+            color={theme.success}
           />
-          <Text style={styles.memberText}>Member since {user?.createdAt ? new Date(user.createdAt).getFullYear() : '2024'}</Text>
+          <Text style={[styles.memberText, { color: theme.success }]}>
+            Member since {user?.createdAt ? new Date(user.createdAt).getFullYear() : '2024'}
+          </Text>
+        </View>
+
+        {/* Image Picker Button */}
+        <View style={styles.imagePickerContainer}>
+          <ImagePickerInput
+            onImageSelected={handleChangeProfilePicture}
+            isLoading={isUpdatingPicture}
+            label="Change Picture"
+          />
         </View>
       </View>
 
       {/* Settings Sections */}
       <View style={styles.settingsSection}>
-        <Text style={styles.settingsSectionTitle}>Preferences</Text>
+        <Text style={[styles.settingsSectionTitle, { color: theme.textSecondary }]}>
+          Preferences
+        </Text>
 
         {/* Theme Toggle */}
-        <View style={styles.settingItem}>
+        <View style={[styles.settingItem, { backgroundColor: theme.backgroundSecondary }]}>
           <View style={styles.settingLabelContainer}>
             <MaterialCommunityIcons
               name={user?.theme === 'dark' ? 'moon-waning-crescent' : 'white-balance-sunny'}
               size={20}
-              color={LIGHT_THEME.accentOrange}
+              color={theme.accentOrange}
             />
             <View style={styles.settingLabel}>
-              <Text style={styles.settingLabelText}>Dark Mode</Text>
-              <Text style={styles.settingLabelSubtext}>
+              <Text style={[styles.settingLabelText, { color: theme.text }]}>
+                Dark Mode
+              </Text>
+              <Text style={[styles.settingLabelSubtext, { color: theme.textSecondary }]}>
                 Currently {user?.theme === 'dark' ? 'enabled' : 'disabled'}
               </Text>
             </View>
@@ -203,11 +179,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
             value={user?.theme === 'dark'}
             onValueChange={handleToggleTheme}
             trackColor={{
-              false: LIGHT_THEME.border,
-              true: LIGHT_THEME.accentTeal,
+              false: theme.border,
+              true: theme.accentTeal,
             }}
             thumbColor={
-              user?.theme === 'dark' ? LIGHT_THEME.accentTeal : LIGHT_THEME.border
+              user?.theme === 'dark' ? theme.accentTeal : theme.border
             }
           />
         </View>
@@ -215,40 +191,48 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
 
       {/* About Section */}
       <View style={styles.settingsSection}>
-        <Text style={styles.settingsSectionTitle}>About</Text>
+        <Text style={[styles.settingsSectionTitle, { color: theme.textSecondary }]}>
+          About
+        </Text>
 
-        <View style={styles.settingItem}>
+        <View style={[styles.settingItem, { backgroundColor: theme.backgroundSecondary }]}>
           <View style={styles.settingLabelContainer}>
             <MaterialCommunityIcons
               name="information"
               size={20}
-              color={LIGHT_THEME.accentBlue}
+              color={theme.accentBlue}
             />
             <View style={styles.settingLabel}>
-              <Text style={styles.settingLabelText}>App Version</Text>
-              <Text style={styles.settingLabelSubtext}>1.0.0</Text>
+              <Text style={[styles.settingLabelText, { color: theme.text }]}>
+                App Version
+              </Text>
+              <Text style={[styles.settingLabelSubtext, { color: theme.textSecondary }]}>
+                1.0.0
+              </Text>
             </View>
           </View>
         </View>
 
         <TouchableOpacity
-          style={styles.settingItem}
+          style={[styles.settingItem, { backgroundColor: theme.backgroundSecondary }]}
           onPress={() => Alert.alert('Privacy', 'Privacy policy would be displayed here')}
         >
           <View style={styles.settingLabelContainer}>
             <MaterialCommunityIcons
               name="shield"
               size={20}
-              color={LIGHT_THEME.accentGreen}
+              color={theme.accentGreen}
             />
             <View style={styles.settingLabel}>
-              <Text style={styles.settingLabelText}>Privacy Policy</Text>
+              <Text style={[styles.settingLabelText, { color: theme.text }]}>
+                Privacy Policy
+              </Text>
             </View>
           </View>
           <MaterialCommunityIcons
             name="chevron-right"
             size={20}
-            color={LIGHT_THEME.textTertiary}
+            color={theme.textTertiary}
           />
         </TouchableOpacity>
       </View>
@@ -256,16 +240,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
       {/* Sign Out Section */}
       <View style={styles.signOutSection}>
         <TouchableOpacity
-          style={styles.signOutButton}
+          style={[styles.signOutButton, { borderColor: theme.error + '30', backgroundColor: theme.error + '10' }]}
           onPress={handleSignOut}
           disabled={isSigning || loading}
         >
           <MaterialCommunityIcons
             name="logout"
             size={20}
-            color={LIGHT_THEME.error}
+            color={theme.error}
           />
-          <Text style={styles.signOutButtonText}>
+          <Text style={[styles.signOutButtonText, { color: theme.error }]}>
             {isSigning ? 'Signing out...' : 'Sign Out'}
           </Text>
         </TouchableOpacity>
@@ -280,28 +264,23 @@ const ProfileScreen: React.FC<ProfileScreenProps> = () => {
 const styles = StyleSheet.create({
   containerSafe: {
     flex: 1,
-    backgroundColor: LIGHT_THEME.background,
   },
   container: {
     flex: 1,
-    backgroundColor: LIGHT_THEME.background,
   },
   userCard: {
     alignItems: 'center',
     paddingVertical: SPACING.xl,
     paddingHorizontal: SPACING.lg,
-    backgroundColor: LIGHT_THEME.backgroundSecondary,
     marginBottom: SPACING.lg,
   },
   avatarContainer: {
-    position: 'relative',
     marginBottom: SPACING.md,
   },
   avatarImage: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: LIGHT_THEME.accentTeal,
   },
   avatarPlaceholder: {
     width: 80,
@@ -309,29 +288,13 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: LIGHT_THEME.backgroundTertiary,
-  },
-  cameraOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: LIGHT_THEME.accentTeal,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: LIGHT_THEME.backgroundSecondary,
   },
   displayName: {
     ...TEXT_STYLES.heading2,
-    color: LIGHT_THEME.text,
     marginBottom: SPACING.xs,
   },
   email: {
     ...TEXT_STYLES.bodySmall,
-    color: LIGHT_THEME.textSecondary,
     marginBottom: SPACING.md,
   },
   memberBadge: {
@@ -339,13 +302,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    backgroundColor: LIGHT_THEME.success + '10',
     borderRadius: BORDER_RADIUS.full,
+    marginBottom: SPACING.md,
   },
   memberText: {
     ...TEXT_STYLES.caption,
-    color: LIGHT_THEME.success,
     marginLeft: SPACING.sm,
+  },
+  imagePickerContainer: {
+    width: '100%',
   },
   settingsSection: {
     paddingHorizontal: SPACING.lg,
@@ -353,7 +318,6 @@ const styles = StyleSheet.create({
   },
   settingsSectionTitle: {
     ...TEXT_STYLES.labelLarge,
-    color: LIGHT_THEME.textSecondary,
     marginBottom: SPACING.md,
     textTransform: 'uppercase',
   },
@@ -363,7 +327,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.md,
-    backgroundColor: LIGHT_THEME.backgroundSecondary,
     borderRadius: BORDER_RADIUS.md,
     marginBottom: SPACING.sm,
   },
@@ -378,11 +341,9 @@ const styles = StyleSheet.create({
   },
   settingLabelText: {
     ...TEXT_STYLES.body,
-    color: LIGHT_THEME.text,
   },
   settingLabelSubtext: {
     ...TEXT_STYLES.caption,
-    color: LIGHT_THEME.textSecondary,
     marginTop: SPACING.xs,
   },
   signOutSection: {
@@ -395,14 +356,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.lg,
-    backgroundColor: LIGHT_THEME.error + '10',
     borderRadius: BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: LIGHT_THEME.error + '30',
   },
   signOutButtonText: {
     ...TEXT_STYLES.button,
-    color: LIGHT_THEME.error,
     marginLeft: SPACING.md,
   },
 });

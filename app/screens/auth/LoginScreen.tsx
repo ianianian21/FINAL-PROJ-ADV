@@ -20,10 +20,12 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../../types';
 import { useAppContext } from '../../hooks/useAppContext';
 import { validateEmail, validatePassword } from '../../utils/validation';
+import { useTheme } from '../../hooks/useTheme';
 import { LIGHT_THEME } from '../../constants/colors';
 import { TEXT_STYLES } from '../../constants/typography';
 import { SPACING, BORDER_RADIUS } from '../../constants/theme';
 import LoadingOverlay from '../../components/LoadingOverlay';
+import { resetPassword } from '../../firebase/auth';
 
 type LoginScreenProps = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
@@ -41,6 +43,7 @@ interface FormErrors {
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const { signIn, loading } = useAppContext();
+  const theme = useTheme();
   const [form, setForm] = useState<FormState>({
     email: '',
     password: '',
@@ -48,6 +51,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   /**
    * Validate form before submission
@@ -89,6 +95,31 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   };
 
   /**
+   * Handle forgot password
+   */
+  const handleForgotPassword = async () => {
+    if (!resetEmail.trim()) {
+      Alert.alert('Error', 'Please enter your email address');
+      return;
+    }
+
+    try {
+      setIsResettingPassword(true);
+      await resetPassword(resetEmail);
+      Alert.alert(
+        'Success',
+        'Password reset email sent! Check your email for instructions.',
+        [{ text: 'OK', onPress: () => setShowForgotPassword(false) }]
+      );
+      setResetEmail('');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to send reset email');
+    } finally {
+      setIsResettingPassword(false);
+    }
+  };
+
+  /**
    * Handle input change
    */
   const handleInputChange = (key: keyof FormState, value: any) => {
@@ -102,7 +133,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.background }]}
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         {/* Header */}
@@ -110,34 +141,37 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           <MaterialCommunityIcons
             name="check-circle"
             size={64}
-            color={LIGHT_THEME.accentTeal}
+            color={theme.accentTeal}
             style={styles.logo}
           />
-          <Text style={styles.title}>Welcome to Taskly</Text>
-          <Text style={styles.subtitle}>Sign in to manage your tasks and goals</Text>
+          <Text style={[styles.title, { color: theme.text }]}>Welcome to Taskly</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+            Sign in to manage your tasks and goals
+          </Text>
         </View>
 
         {/* Form */}
         <View style={styles.form}>
           {/* Email input */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address</Text>
+            <Text style={[styles.label, { color: theme.text }]}>Email Address</Text>
             <View
               style={[
                 styles.inputContainer,
-                errors.email && styles.inputError,
+                { backgroundColor: theme.backgroundSecondary, borderColor: theme.border },
+                errors.email && { borderColor: theme.error },
               ]}
             >
               <MaterialCommunityIcons
                 name="email"
                 size={20}
-                color={LIGHT_THEME.textSecondary}
+                color={theme.textSecondary}
                 style={styles.inputIcon}
               />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: theme.text }]}
                 placeholder="Enter your email"
-                placeholderTextColor={LIGHT_THEME.textTertiary}
+                placeholderTextColor={theme.textTertiary}
                 value={form.email}
                 onChangeText={(value) => handleInputChange('email', value)}
                 editable={!isSubmitting}
@@ -146,29 +180,30 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               />
             </View>
             {errors.email && (
-              <Text style={styles.errorText}>{errors.email}</Text>
+              <Text style={[styles.errorText, { color: theme.error }]}>{errors.email}</Text>
             )}
           </View>
 
           {/* Password input */}
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
+            <Text style={[styles.label, { color: theme.text }]}>Password</Text>
             <View
               style={[
                 styles.inputContainer,
-                errors.password && styles.inputError,
+                { backgroundColor: theme.backgroundSecondary, borderColor: theme.border },
+                errors.password && { borderColor: theme.error },
               ]}
             >
               <MaterialCommunityIcons
                 name="lock"
                 size={20}
-                color={LIGHT_THEME.textSecondary}
+                color={theme.textSecondary}
                 style={styles.inputIcon}
               />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: theme.text }]}
                 placeholder="Enter your password"
-                placeholderTextColor={LIGHT_THEME.textTertiary}
+                placeholderTextColor={theme.textTertiary}
                 value={form.password}
                 onChangeText={(value) => handleInputChange('password', value)}
                 editable={!isSubmitting}
@@ -182,49 +217,142 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 <MaterialCommunityIcons
                   name={form.showPassword ? 'eye-off' : 'eye'}
                   size={20}
-                  color={LIGHT_THEME.textSecondary}
+                  color={theme.textSecondary}
                 />
               </TouchableOpacity>
             </View>
             {errors.password && (
-              <Text style={styles.errorText}>{errors.password}</Text>
+              <Text style={[styles.errorText, { color: theme.error }]}>{errors.password}</Text>
             )}
           </View>
 
           {/* General error message */}
           {errors.general && (
-            <View style={styles.generalError}>
+            <View style={[styles.generalError, { backgroundColor: theme.error + '10', borderLeftColor: theme.error }]}>
               <MaterialCommunityIcons
                 name="alert-circle"
                 size={16}
-                color={LIGHT_THEME.error}
+                color={theme.error}
               />
-              <Text style={styles.generalErrorText}>{errors.general}</Text>
+              <Text style={[styles.generalErrorText, { color: theme.error }]}>{errors.general}</Text>
             </View>
           )}
 
           {/* Sign in button */}
           <TouchableOpacity
-            style={[styles.button, isSubmitting && styles.buttonDisabled]}
+            style={[styles.button, { backgroundColor: theme.accentTeal }, isSubmitting && styles.buttonDisabled]}
             onPress={handleSignIn}
             disabled={isSubmitting || loading}
           >
-            <Text style={styles.buttonText}>
+            <Text style={[styles.buttonText, { color: theme.textInverse }]}>
               {isSubmitting ? 'Signing in...' : 'Sign In'}
             </Text>
           </TouchableOpacity>
 
+          {/* Forgot password link */}
+          <View style={styles.linksContainer}>
+            <TouchableOpacity
+              onPress={() => setShowForgotPassword(true)}
+              disabled={isSubmitting}
+            >
+              <Text style={[styles.forgotPasswordLink, { color: theme.accentTeal }]}>
+                Forgot password?
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Sign up link */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Text style={[styles.footerText, { color: theme.textSecondary }]}>
+              Don't have an account?{' '}
+            </Text>
             <TouchableOpacity
               onPress={() => navigation.replace('Register')}
               disabled={isSubmitting}
             >
-              <Text style={styles.footerLink}>Sign Up</Text>
+              <Text style={[styles.footerLink, { color: theme.accentTeal }]}>Sign Up</Text>
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Forgot Password Modal */}
+        {showForgotPassword && (
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>Reset Password</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowForgotPassword(false);
+                    setResetEmail('');
+                  }}
+                >
+                  <MaterialCommunityIcons
+                    name="close"
+                    size={24}
+                    color={theme.text}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={[styles.modalDescription, { color: theme.textSecondary }]}>
+                Enter your email address and we'll send you a link to reset your password.
+              </Text>
+
+              <View style={styles.modalInputGroup}>
+                <View
+                  style={[
+                    styles.modalInputContainer,
+                    { backgroundColor: theme.backgroundSecondary, borderColor: theme.border },
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="email"
+                    size={20}
+                    color={theme.textSecondary}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={[styles.modalInput, { color: theme.text }]}
+                    placeholder="Enter your email"
+                    placeholderTextColor={theme.textTertiary}
+                    value={resetEmail}
+                    onChangeText={setResetEmail}
+                    editable={!isResettingPassword}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalButton,
+                  { backgroundColor: theme.accentTeal },
+                  isResettingPassword && styles.buttonDisabled,
+                ]}
+                onPress={handleForgotPassword}
+                disabled={isResettingPassword}
+              >
+                <Text style={[styles.modalButtonText, { color: theme.textInverse }]}>
+                  {isResettingPassword ? 'Sending...' : 'Send Reset Email'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setShowForgotPassword(false);
+                  setResetEmail('');
+                }}
+                disabled={isResettingPassword}
+              >
+                <Text style={[styles.modalCancelButton, { color: theme.textSecondary }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       {/* Loading overlay */}
@@ -236,7 +364,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: LIGHT_THEME.background,
   },
   scrollContainer: {
     flexGrow: 1,
@@ -253,13 +380,11 @@ const styles = StyleSheet.create({
   },
   title: {
     ...TEXT_STYLES.heading1,
-    color: LIGHT_THEME.text,
     marginBottom: SPACING.md,
     lineHeight: 36,
   },
   subtitle: {
     ...TEXT_STYLES.body,
-    color: LIGHT_THEME.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -271,21 +396,15 @@ const styles = StyleSheet.create({
   },
   label: {
     ...TEXT_STYLES.labelLarge,
-    color: LIGHT_THEME.text,
     marginBottom: SPACING.sm,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: LIGHT_THEME.border,
     borderRadius: BORDER_RADIUS.md,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
-    backgroundColor: LIGHT_THEME.backgroundSecondary,
-  },
-  inputError: {
-    borderColor: LIGHT_THEME.error,
   },
   inputIcon: {
     marginRight: SPACING.md,
@@ -293,32 +412,26 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     ...TEXT_STYLES.body,
-    color: LIGHT_THEME.text,
     paddingVertical: 0,
   },
   errorText: {
     ...TEXT_STYLES.caption,
-    color: LIGHT_THEME.error,
     marginTop: SPACING.xs,
   },
   generalError: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: LIGHT_THEME.error + '10',
     borderLeftWidth: 4,
-    borderLeftColor: LIGHT_THEME.error,
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.sm,
     marginBottom: SPACING.lg,
   },
   generalErrorText: {
     ...TEXT_STYLES.body,
-    color: LIGHT_THEME.error,
     marginLeft: SPACING.md,
     flex: 1,
   },
   button: {
-    backgroundColor: LIGHT_THEME.accentTeal,
     borderRadius: BORDER_RADIUS.md,
     paddingVertical: SPACING.md,
     alignItems: 'center',
@@ -329,7 +442,14 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     ...TEXT_STYLES.button,
-    color: LIGHT_THEME.textInverse,
+  },
+  linksContainer: {
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  forgotPasswordLink: {
+    ...TEXT_STYLES.label,
+    textDecorationLine: 'underline',
   },
   footer: {
     flexDirection: 'row',
@@ -338,12 +458,70 @@ const styles = StyleSheet.create({
   },
   footerText: {
     ...TEXT_STYLES.body,
-    color: LIGHT_THEME.textSecondary,
   },
   footerLink: {
     ...TEXT_STYLES.body,
-    color: LIGHT_THEME.accentTeal,
     fontFamily: TEXT_STYLES.labelLarge.fontFamily,
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  modalContent: {
+    width: '85%',
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    maxWidth: 400,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  modalTitle: {
+    ...TEXT_STYLES.heading3,
+  },
+  modalDescription: {
+    ...TEXT_STYLES.body,
+    marginBottom: SPACING.md,
+    lineHeight: 20,
+  },
+  modalInputGroup: {
+    marginBottom: SPACING.lg,
+  },
+  modalInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  modalInput: {
+    flex: 1,
+    ...TEXT_STYLES.body,
+    paddingVertical: 0,
+  },
+  modalButton: {
+    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: SPACING.md,
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  modalButtonText: {
+    ...TEXT_STYLES.button,
+  },
+  modalCancelButton: {
+    ...TEXT_STYLES.label,
+    textAlign: 'center',
   },
 });
 

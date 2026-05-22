@@ -9,6 +9,7 @@ import {
   signOut,
   setPersistence,
   browserSessionPersistence,
+  sendPasswordResetEmail,
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from './config';
@@ -96,6 +97,25 @@ export const logoutUser = async (): Promise<void> => {
     await signOut(auth);
   } catch (error: any) {
     throw new Error(error.message || 'Failed to sign out');
+  }
+};
+
+/**
+ * Send password reset email to user
+ * @param email - User email to send reset link to
+ * @throws Error if reset fails
+ */
+export const resetPassword = async (email: string): Promise<void> => {
+  try {
+    await sendPasswordResetEmail(auth, email);
+  } catch (error: any) {
+    if (error.code === 'auth/user-not-found') {
+      throw new Error('No account found with this email');
+    }
+    if (error.code === 'auth/invalid-email') {
+      throw new Error('Invalid email address');
+    }
+    throw new Error(error.message || 'Failed to send reset email');
   }
 };
 
